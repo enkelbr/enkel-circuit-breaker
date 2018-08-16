@@ -172,6 +172,7 @@ public class HostRoutingFilter extends ZuulFilter {
 		HttpServletRequest request = context.getRequest();
 		MultiValueMap<String, String> headers = this.helper
 				.buildZuulRequestHeaders(request);
+		headers.add("Host", request.getHeader("Host"));
 		MultiValueMap<String, String> params = this.helper
 				.buildZuulRequestQueryParams(request);
 		this.helper.addIgnoredHeaders();
