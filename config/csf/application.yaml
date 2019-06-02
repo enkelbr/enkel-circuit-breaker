@@ -1,0 +1,11 @@
+zuul:
+  prefix: /
+  host:
+    socket-timeout-millis: 305000
+    max-total-connections: 5000
+    max-per-route-connections: 200
+  routes:
+    data-motion:
+      path: /**/service.asmx
+      sensitiveHeaders: Cookie,Set-Cookie
+      url: http://172.16.101.10/service.asmx
