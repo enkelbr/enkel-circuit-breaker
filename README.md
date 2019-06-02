@@ -19,3 +19,8 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+## Código personalizado
+
+Na estrutura montada temos arquivos de configuração e o código fonte.
+A pasta src contém o código fonte e a pasta config tem os arquivos de configuração separadas por cliente bem como o script de start do CB.
