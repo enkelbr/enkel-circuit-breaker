@@ -1,5 +1,5 @@
 javaBin="/usr/bin/java"
-workingDir="/Users/cemaia/Downloads/target"
+workingDir="/opt/circuit-breaker"
 minHeap="4g"
 maxHeap="4g"
 maxMetaSize="512m"
