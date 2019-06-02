@@ -6,6 +6,6 @@ zuul:
     max-per-route-connections: 200
   routes:
     dataMotion:
-      path: /**/service.asmx
+      path: /service.asmx
       sensitiveHeaders: Cookie,Set-Cookie
       url: http://172.16.101.10/service.asmx
