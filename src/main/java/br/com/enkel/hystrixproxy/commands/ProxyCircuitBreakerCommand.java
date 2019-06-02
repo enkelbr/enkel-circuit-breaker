@@ -86,8 +86,8 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 		String mockPayloadLocation = DynamicPropertyFactory.getInstance()
 				.getStringProperty(String.format("hystrix.command.%s.fallback.payload.location", this.getCommandKey().name()), null)
 				.get();
+		String path = this.getCommandKey().name().substring(0, this.getCommandKey().name().indexOf("-"));
 		if (mockPayloadLocation == null || mockPayloadLocation.isEmpty()) {
-			String path = this.getCommandKey().name().substring(0, this.getCommandKey().name().indexOf("-"));
 			mockPayloadLocation = DynamicPropertyFactory.getInstance()
 			.getStringProperty(String.format("hystrix.command.%s.fallback.payload.location", path), null)
 			.get();
@@ -95,6 +95,9 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 
 		if (mockPayloadLocation != null) {
 			try {
+				Integer statusCode = DynamicPropertyFactory.getInstance()
+				.getIntProperty(String.format("hystrix.command.%s.fallback.status.code", path), 500)
+				.get();
 				FileInputStream inputStream = new FileInputStream(mockPayloadLocation);
 				try{
 					String content = IOUtils.toString(inputStream, Charset.defaultCharset());
@@ -102,7 +105,7 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 					HttpResponse response = Mockito.mock(HttpResponse.class);
 
 					//headers
-					StatusLine statusLine = new BasicStatusLine(new HttpVersion(1, 1), mockPayloadLocation.endsWith(".xml") ? HttpStatus.SC_INTERNAL_SERVER_ERROR : HttpStatus.SC_SERVICE_UNAVAILABLE, "");
+					StatusLine statusLine = new BasicStatusLine(new HttpVersion(1, 1), statusCode, "");
 					Mockito.when(response.getStatusLine()).thenReturn(statusLine);
 					Mockito.when(response.getEntity()).thenReturn(new StringEntity(content));
 					Mockito.when(response.getAllHeaders()).thenReturn(new Header[] {new BasicHeader("Mock-Payload", "true"), new BasicHeader("Content-Type", mockPayloadLocation.endsWith(".xml") ? "text/xml" : "application/json")});
