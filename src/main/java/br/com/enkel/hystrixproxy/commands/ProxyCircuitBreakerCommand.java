@@ -16,19 +16,29 @@
 
 package br.com.enkel.hystrixproxy.commands;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 
+import javax.xml.transform.Source;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.transform.stream.StreamSource;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
 import org.apache.http.StatusLine;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
 import org.mockito.Mockito;
 
@@ -36,8 +46,8 @@ import com.netflix.config.DynamicPropertyFactory;
 import com.netflix.hystrix.HystrixCommand;
 
 /***
- * Implemetação customizada de um {@link HystrixCommand}
- * Implementa fallback que realiza carga de um response mock;
+ * Implemetação customizada de um {@link HystrixCommand} Implementa fallback que
+ * realiza carga de um response mock;
  */
 public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResponse> {
 
@@ -47,10 +57,19 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 
 	/**
 	 * Subclasses deste comando precisam implementar este método
+	 * 
 	 * @return
 	 * @throws Exception
 	 */
 	protected abstract HttpResponse doRun() throws Exception;
+
+	/**
+	 * Subclasses deste comando precisam implementar este método
+	 * 
+	 * @return
+	 * @throws Exception
+	 */
+	protected abstract HttpEntity getRequestRepeatableEntity();
 
 	/**
 	 *
@@ -59,9 +78,10 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 	protected final HttpResponse run() throws Exception {
 		HttpResponse response = doRun();
 
-		if (this.isResponseTimedOut()){
-			//Caso o Hystrix interrompa a execução do comando antes do HTTP timeout,
-			//o response precisa ser consumido de alguma forma para garantir a devolução da conexão ao pool.
+		if (this.isResponseTimedOut()) {
+			// Caso o Hystrix interrompa a execução do comando antes do HTTP timeout,
+			// o response precisa ser consumido de alguma forma para garantir a devolução da
+			// conexão ao pool.
 			EntityUtils.consume(response.getEntity());
 			return null;
 		}
@@ -70,8 +90,8 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 	}
 
 	/***
-	 * Implementação de fallback
-	 * Verifica se o comando tem a opção de fallback habilitada
+	 * Implementação de fallback Verifica se o comando tem a opção de fallback
+	 * habilitada
 	 */
 	@Override
 	protected final HttpResponse getFallback() {
@@ -83,34 +103,50 @@ public abstract class ProxyCircuitBreakerCommand extends HystrixCommand<HttpResp
 	 * nas propriedades do Hystrix
 	 */
 	private HttpResponse createMockedResponse() {
-		String mockPayloadLocation = DynamicPropertyFactory.getInstance()
-				.getStringProperty(String.format("hystrix.command.%s.fallback.payload.location", this.getCommandKey().name()), null)
-				.get();
+		String mockPayloadLocation = DynamicPropertyFactory.getInstance().getStringProperty(
+				String.format("hystrix.command.%s.fallback.payload.location", this.getCommandKey().name()), null).get();
 		String path = this.getCommandKey().name().substring(0, this.getCommandKey().name().indexOf("-"));
 		if (mockPayloadLocation == null || mockPayloadLocation.isEmpty()) {
 			mockPayloadLocation = DynamicPropertyFactory.getInstance()
-			.getStringProperty(String.format("hystrix.command.%s.fallback.payload.location", path), null)
-			.get();
+					.getStringProperty(String.format("hystrix.command.%s.fallback.payload.location", path), null).get();
 		}
 
 		if (mockPayloadLocation != null) {
 			try {
 				Integer statusCode = DynamicPropertyFactory.getInstance()
-				.getIntProperty(String.format("hystrix.command.%s.fallback.status.code", path), 500)
-				.get();
+						.getIntProperty(String.format("hystrix.command.%s.fallback.status.code", path), 500).get();
 				FileInputStream inputStream = new FileInputStream(mockPayloadLocation);
-				try{
-					String content = IOUtils.toString(inputStream, Charset.defaultCharset());
-					
+				try {
+					String content = "";
+					// Check if it was needed to apply an XSLT processor
+					if (mockPayloadLocation.endsWith(".xsl")) {
+						TransformerFactory factory = TransformerFactory.newInstance();
+						Source xslt = new StreamSource(new File(mockPayloadLocation));
+
+						Transformer transformer = factory.newTransformer(xslt);
+
+						ByteArrayOutputStream baos = new ByteArrayOutputStream();
+						Source text = new StreamSource(this.getRequestRepeatableEntity().getContent());
+						transformer.transform(text, new StreamResult(baos));
+						// Write to content
+						content = IOUtils.toString(baos.toByteArray(), Charset.defaultCharset().displayName());
+					} else {
+						content = IOUtils.toString(inputStream, Charset.defaultCharset());
+					}
+
 					HttpResponse response = Mockito.mock(HttpResponse.class);
 
-					//headers
+					// headers
 					StatusLine statusLine = new BasicStatusLine(new HttpVersion(1, 1), statusCode, "");
 					Mockito.when(response.getStatusLine()).thenReturn(statusLine);
 					Mockito.when(response.getEntity()).thenReturn(new StringEntity(content));
-					Mockito.when(response.getAllHeaders()).thenReturn(new Header[] {new BasicHeader("Mock-Payload", "true"), new BasicHeader("Content-Type", mockPayloadLocation.endsWith(".xml") ? "text/xml" : "application/json")});
+					Mockito.when(response.getAllHeaders()).thenReturn(
+							new Header[] { new BasicHeader("Mock-Payload", "true"), new BasicHeader("Content-Type",
+									(mockPayloadLocation.endsWith(".xml") || mockPayloadLocation.endsWith(".xsl")) ? "text/xml" : "application/json") });
 
 					return response;
+				} catch (TransformerException e) {
+					throw new UnsupportedOperationException("Mocked Payload not found");
 				}
 				finally{
 					inputStream.close();

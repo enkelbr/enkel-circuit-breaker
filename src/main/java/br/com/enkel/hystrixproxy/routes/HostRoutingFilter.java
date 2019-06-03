@@ -38,6 +38,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -55,6 +56,7 @@ import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -177,7 +179,7 @@ public class HostRoutingFilter extends ZuulFilter {
 				.buildZuulRequestQueryParams(request);
 		this.helper.addIgnoredHeaders();
 		String verb = getVerb(request);
-		InputStream requestEntity = getRequestBody(request);
+		InputStream requestBody = getRequestBody(request);
 		if (request.getContentLength() < 0) {
 			context.setChunkedRequestBody();
 		}
@@ -216,10 +218,19 @@ public class HostRoutingFilter extends ZuulFilter {
 		
 		try {
 			
+			int contentLength = request.getContentLength();
+			BufferedHttpEntity requestEntity = new BufferedHttpEntity(new InputStreamEntity(requestBody, contentLength, 
+				ContentType.create(request.getContentType())));
+
 			HystrixCommand.Setter theSetter = HystrixCommand.Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey(commandKey));
 			theSetter = theSetter.andCommandKey(HystrixCommandKey.Factory.asKey(commandKey));
 			
 			HystrixCommand<HttpResponse> theCommand = new ProxyCircuitBreakerCommand(theSetter){
+				@Override
+				protected HttpEntity getRequestRepeatableEntity() {
+					return requestEntity;
+				}
+				
 				@Override
 				protected HttpResponse doRun() throws Exception {
 					return forward(HostRoutingFilter.this.httpClient, verb, uri, host, request, headers, params, requestEntity);
@@ -301,29 +312,26 @@ public class HostRoutingFilter extends ZuulFilter {
 
 	private HttpResponse forward(HttpClient httpclient, String verb, String uri,
 			URL host, HttpServletRequest request, MultiValueMap<String, String> headers,
-			MultiValueMap<String, String> params, InputStream requestEntity)
+			MultiValueMap<String, String> params, HttpEntity requestEntity)
 					throws Exception {
 		HttpHost httpHost = getHttpHost(host);
 		uri = StringUtils.cleanPath((host.getPath() + uri).replaceAll("/{2,}", "/"));
 		HttpRequest httpRequest;
-		int contentLength = request.getContentLength();
-		InputStreamEntity entity = new InputStreamEntity(requestEntity, contentLength,
-				ContentType.create(request.getContentType()));
 		switch (verb.toUpperCase()) {
 		case "POST":
 			HttpPost httpPost = new HttpPost(uri + this.helper.getQueryString(params));
 			httpRequest = httpPost;
-			httpPost.setEntity(entity);
+			httpPost.setEntity(requestEntity);
 			break;
 		case "PUT":
 			HttpPut httpPut = new HttpPut(uri + this.helper.getQueryString(params));
 			httpRequest = httpPut;
-			httpPut.setEntity(entity);
+			httpPut.setEntity(requestEntity);
 			break;
 		case "PATCH":
 			HttpPatch httpPatch = new HttpPatch(uri + this.helper.getQueryString(params));
 			httpRequest = httpPatch;
-			httpPatch.setEntity(entity);
+			httpPatch.setEntity(requestEntity);
 			break;
 		default:
 			httpRequest = new BasicHttpRequest(verb,
