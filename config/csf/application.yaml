@@ -1,0 +1,11 @@
+zuul:
+  prefix: /
+  host:
+    socket-timeout-millis: 305000
+    max-total-connections: 5000
+    max-per-route-connections: 200
+  routes:
+    dataMotion:
+      path: service.asmx/**
+      sensitiveHeaders: Cookie,Set-Cookie
+      url: http://consultacep/service.asmx
