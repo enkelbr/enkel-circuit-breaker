@@ -6,6 +6,6 @@ zuul:
     max-per-route-connections: 200
   routes:
     dataMotion:
-      path: /service.asmx
+      path: service.asmx/**
       sensitiveHeaders: Cookie,Set-Cookie
       url: http://consultacep/service.asmx
