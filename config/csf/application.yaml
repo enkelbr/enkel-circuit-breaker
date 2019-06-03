@@ -8,4 +8,4 @@ zuul:
     dataMotion:
       path: /service.asmx
       sensitiveHeaders: Cookie,Set-Cookie
-      url: http://172.16.101.10/service.asmx
+      url: http://consultacep/service.asmx
