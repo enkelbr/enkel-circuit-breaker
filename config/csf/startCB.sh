@@ -61,7 +61,7 @@ nohup ${javaBin} \
     ${gcInfo} \
     -Darchaius.fixedDelayPollingScheduler.initialDelayMills=5000 \
     -Darchaius.fixedDelayPollingScheduler.delayMills=5000 \
-    -Dserver.port=8080 \
+    -Dserver.port=80 \
     -Darchaius.configurationSource.additionalUrls=file://${hystrixConfigFile} \
     -Dspring.config.location=${externalConfigFile} \
     -jar ${workingDir}/csf-circuit-breaker.jar > ${workingDir}/logs/nohup.${timeStamp}.out
