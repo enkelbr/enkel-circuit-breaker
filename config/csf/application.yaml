@@ -1,7 +1,7 @@
 zuul:
   prefix: /
   host:
-    socket-timeout-millis: 305000
+    socket-timeout-millis: 10000
     max-total-connections: 5000
     max-per-route-connections: 200
   routes:
